@@ -2,9 +2,13 @@ import pygame
 import random 
 import math
 import time
-FPS = 60
+FPS = 120
 FRICTION = 0.70
 SCREEN_SIZE = (1000, 800)
+
+ali = 10
+coh = 7000
+sep = 7000
 
 class Vector2:
     def __init__(self, x=0, y=0):
@@ -27,6 +31,27 @@ class Vector2:
     def __truediv__(self, scalar):
         return Vector2(self.x / scalar, self.y / scalar)
 
+    def norm(self):
+        return (self.x**2 + self.y**2) ** 0.5  # Compute Euclidean norm
+
+    def normalize(self):
+        norm = self.norm()
+        if norm != 0:
+            self.x /= norm
+            self.y /= norm
+        return self    
+
+    def negat(self):
+        return Vector2(-self.x, -self.y)
+        
+    def set_length(self, new_length):
+        normalized = self.normalize()
+        self.x = normalized.x * new_length
+        self.y = normalized.y * new_length
+        return Vector2(self.x, self.y)
+    def to_angle(self):
+        return math.atan2(self.y, self.x) * (180 / math.pi)
+
     def length(self):
         return math.sqrt(self.x **2 + self.y**2)
     
@@ -40,9 +65,17 @@ class Poly:
     def __init__(self, size):
         self.size = size
         self.wide = 3.5 
-    def draw(self, pos,angle): #[(pos.y, (-math.sin(angle)* self.size) + pos.x ), (pos.y, (math.sin(angle)* self.size) + pos.x), ( (math.cos(angle)) * self.size + pos.x , (math.sin(angle) * self.size) + pos.y)])
+    def draw(self, pos,angle, col): #[(pos.y, (-math.sin(angle)* self.size) + pos.x ), (pos.y, (math.sin(angle)* self.size) + pos.x), ( (math.cos(angle)) * self.size + pos.x , (math.sin(angle) * self.size) + pos.y)])
         #pygame.draw.circle(screen, (200, 200, 200), pos.get(), 10)
-        pygame.draw.polygon(screen, (100, 100, 100), [ ((math.cos(angle)) * self.size + pos.x , (math.sin(angle) * self.size) + pos.y), ((math.cos(angle + math.radians(90)) * (self.size/self.wide) + pos.x , (math.sin(angle + math.radians(90)) * (self.size /self.wide) + pos.y))),  ((math.cos(angle + math.radians(270)) * (self.size/self.wide) + pos.x) , (math.sin(angle + math.radians(270)) * (self.size /self.wide) + pos.y))])
+        pygame.draw.polygon(screen, col, [ ((math.cos(angle)) * self.size + pos.x , (math.sin(angle) * self.size) + pos.y), ((math.cos(angle + math.radians(90)) * (self.size/self.wide) + pos.x , (math.sin(angle + math.radians(90)) * (self.size /self.wide) + pos.y))),  ((math.cos(angle + math.radians(270)) * (self.size/self.wide) + pos.x) , (math.sin(angle + math.radians(270)) * (self.size /self.wide) + pos.y))])
+
+class Color:
+    def __init__(self, r=100, g=100, b=100):
+        self.r = r
+        self.b = b
+        self.g = g
+    def get(self):
+        return (self.r, self.g, self.b)
 
 
 class Boid:
@@ -53,8 +86,11 @@ class Boid:
         self.dirrection = math.radians(dirrection)
         self.poly = Poly(size)
         self.flapspeed = .01
-        self.flapforce = 1
+        self.maxvel = 1
+        self.flapforce = random.randint(1, self.maxvel)
         self.flaptiming = 0
+        self.range = 45 
+        self.color = Color()
     
     def moy(self, dis):
         somm = 0
@@ -77,16 +113,26 @@ class Boid:
                 num += 1
         return somm / num
 
+    def sommdir(self, dist):
+        somm = Vector2()  # Vecteur pour stocker la somme
+        for boid in scene.boids:
+            if (self.pos - boid.pos).length() < dist and boid != self:
+                somm += self.pos - boid.pos  
+        if somm.length() > 0:
+            return somm.negat().set_length(self.velo).to_angle()
+        return 0 
+
 
     def move(self):
-        
         self.flaptiming += 1 * dt
         if self.flaptiming >= self.flapspeed:
             self.flaptiming = 0
             self.velo += self.flapforce
-            self.dirrection +=  (self.moy(50) - self.dirrection) / 10
-            #self.pos += (self.moypos(100) - self.pos)
-            
+            alignement =  (self.moy(self.range) - self.dirrection) / ali
+            cohesion = (self.moypos(self.range) - self.pos).to_angle() / coh
+            separation = self.sommdir(self.range) / sep
+            self.dirrection += alignement + separation + cohesion
+            print(self.dirrection)
         self.velo *= FRICTION ** dt
         newpos = self.pos + (Vector2(math.cos(self.dirrection)*self.velo, math.sin(self.dirrection)*self.velo) * dt)
         if newpos.x > SCREEN_SIZE[0] or newpos.x < 0:
@@ -102,7 +148,7 @@ class Boid:
         self.dirrection += math.radians(deg)
     
     def draw(self):
-        self.poly.draw(self.pos, self.dirrection)
+        self.poly.draw(self.pos, self.dirrection, self.color.get())
 
 class Scene:
     def __init__(self):
@@ -128,7 +174,7 @@ while Running:
     dt = clock.tick(FPS) / 1000 
     if scene.population <= 100 and random.randint(0, 10):
 
-        scene.addboid(Boid(Vector2(random.randint(0, SCREEN_SIZE[0]), random.randint(0, SCREEN_SIZE[1])), 100, 20, random.randint(0, 90) ))
+        scene.addboid(Boid(Vector2(random.randint(0, SCREEN_SIZE[0]), random.randint(0, SCREEN_SIZE[1])), 100, 20, random.randint(0, 360)))
 
 
     screen.fill(0)
