@@ -1,3 +1,4 @@
+#add fov for flocks
 import pygame
 import random 
 import math
